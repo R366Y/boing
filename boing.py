@@ -48,10 +48,20 @@ class Impact(Actor):
         # has gone beyond 10, the object is removed from the list.
         self.time += 1
 
+class Ball(Actor):
+    def __init__(self, dx):
+        super().__init__("ball", (0,0))
+
+        self.x, self.y = HALF_WIDTH, HALF_HEIGHT
+
+        self.dx, self.dy = dx, 0
+
+        self.speed = 0
+
 class Game:
     def __init__(self, controls=(None, None)) -> None:
         self.bats = []
-        self.ball = None
+        self.ball = Ball(-1)
         self.impacts = []
         self.ai_offset = 0
 
@@ -61,6 +71,10 @@ class Game:
     def draw(self):
         #Draw background
         screen.blit("table", (0,0))
+
+        # Draw bats, ball and impact effects - in that order. 
+        for obj in self.bats + [self.ball] + self.impacts:
+            obj.draw()
 
 def update():
     pass
