@@ -183,7 +183,6 @@ class Bat(Actor):
         # Apply y_movement to y position, ensuring bat does not go through the side walls
         self.y = min(400, max(80, self.y + y_movement))
 
-        
         # Choose the appropriate sprite. There are 3 sprites per player - e.g. bat00 is the left-hand player's
         # standard bat sprite, bat01 is the sprite to use when the ball has just bounced off the bat, and bat02
         # is the sprite to use when the bat has just missed the ball and the ball has gone out of bounds.
@@ -195,13 +194,13 @@ class Bat(Actor):
                 frame = 2
             else:
                 frame = 1
-        
+
         self.image = "bat" + str(self.player) + str(frame)
 
-    def ai(self)->int:
+    def ai(self) -> int:
         """
-            Returns a number indicating how the computer player move - e.g. 4 means it will move 4 pixels 
-            down the screen
+        Returns a number indicating how the computer player move - e.g. 4 means it will move 4 pixels
+        down the screen
         """
 
         # To decide where we want to go, we first check to see how far we are from the ball.
@@ -248,7 +247,7 @@ class Game:
 
         # Remove any expired impact effects from the list. We go through the list backwards, starting from the last
         # element, and delete any elements those time attribute has reached 10. We go backwards through the list
-        # instead of forwards to avoid a number of issues which occur in that scenario. 
+        # instead of forwards to avoid a number of issues which occur in that scenario.
         for i in range(len(self.impacts) - 1, -1, -1):
             if self.impacts[i].time >= 10:
                 del self.impacts[i]
@@ -283,6 +282,19 @@ class Game:
         # Draw bats, ball and impact effects - in that order.
         for obj in self.bats + [self.ball] + self.impacts:
             obj.draw()
+
+        # Display scores - go through each player
+        for p in (0, 1):
+            score = "{0:02d}".format(self.bats[p].score)
+            for i in (0, 1):
+                # Digit sprites are numbered 00 to 29, where the first digit is the color
+                # (0 = grey, 1 = blue, 2 = green) and the second digit is the digit itself
+                colour = "0"
+                other_p = 1 - p
+                if self.bats[other_p].timer > 0 and game.ball.out():
+                    colour = "2" if p == 0 else "1"
+                image = "digit" + colour + str(score[i])
+                screen.blit(image, (255 + (160 * p) + (i * 55), 46))
 
     def play_sound(self, name, count=1, menu_sound=False):
         # Some sounds have multiple varieties. If count > 1, we'll randomly choose one from those
@@ -326,14 +338,83 @@ def p2_controls():
     return move
 
 
-def update():
-    game.update()
+class State(Enum):
+    MENU = 1
+    PLAY = 2
+    GAME_OVER = 3
 
+
+num_players = 1
+
+space_down = False
+
+
+# Pygame Zero calls update and draw functions each frame
+def update():
+    global state, game, num_players, space_down
+
+    # Work out whether the space key has just been pressed
+    space_pressed = False
+    if keyboard.space and not space_down:
+        space_pressed = True
+    space_down = keyboard.space
+
+    if state == State.MENU:
+        if space_pressed:
+            # Switch to play state
+            state = State.PLAY
+            controls = [p1_controls]
+            controls.append(p2_controls if num_players == 2 else None)
+            game = Game(controls)
+        else:
+            if num_players == 2 and keyboard.up:
+                game.play_sound("up", menu_sound=True)
+                num_players = 1
+            elif num_players == 1 and keyboard.down:
+                game.play_sound("down", menu_sound=True)
+                num_players = 2
+
+            game.update()
+    
+    elif state == State.PLAY:
+        # Has anyone won?
+        if max(game.bats[0].score, game.bats[1].score) > 9:
+            state = State.GAME_OVER
+        else:
+            game.update()
+
+    elif state == State.GAME_OVER:
+        if space_pressed:
+            # Reset to menu state
+            state = State.MENU
+            num_players = 1
+
+            game = Game()
 
 def draw():
     game.draw()
 
+    if state == State.MENU:
+        menu_image = "menu" + str(num_players - 1)
+        screen.blit(menu_image, (0,0))
 
-game = Game([p1_controls, None])
+    elif state == State.GAME_OVER:
+        screen.blit("over", (0,0))
+
+# The mixer allows us to play sounds and music
+try:
+    pygame.mixer.quit()
+    pygame.mixer.init(44100, -16, 2, 1024)
+
+    music.play("theme")
+    music.set_volume(0.3)
+except Exception:
+    # If an error occurs (e.g. no sound device), just ignore it
+    pass
+
+# Set the initial game state
+state = State.MENU
+
+game = Game()
 
 pgzrun.go()
